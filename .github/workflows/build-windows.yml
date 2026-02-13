@@ -2,8 +2,10 @@ name: Build Windows EXE
 
 on:
   push:
-    branches: [ main, master, ci/build-windows ]
-  workflow_dispatch:
+    branches: [ main, master ]
+    tags:
+      - 'v*' # ÂÌ‘ €· ·„«  —›⁄ √Ì Tag Ì»œ√ »Õ—› v
+  workflow_dispatch: # Ì ÌÕ ·ﬂ  ‘€Ì·Â ÌœÊÌ« „‰ Ê«ÃÂ… GitHub
 
 jobs:
   build-windows:
@@ -16,19 +18,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
+          cache: 'npm'
 
-      - name: Run CI prune script (clean workspace)
+      #  √ﬂœ √‰ Â–« «·„·› „ÊÃÊœ ›Ì „”«— scripts/ci-prune.ps1
+      - name: Run CI prune script
         shell: powershell
         run: |
-          .\scripts\ci-prune.ps1
-
-      - name: Cache node modules
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
+          if (Test-Path ".\scripts\ci-prune.ps1") {
+            .\scripts\ci-prune.ps1
+          } else {
+            Write-Host "Skip: ci-prune.ps1 not found"
+          }
 
       - name: Install dependencies
         run: npm ci
@@ -43,6 +43,7 @@ jobs:
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          # Â–« «·√„— Ì÷„‰ »‰«¡ «·‰”Œ… «·„Êﬁ⁄…
         run: npx electron-builder --win --x64 --config.extraMetadata.main=main.js
 
       - name: Upload artifacts
@@ -50,5 +51,16 @@ jobs:
         with:
           name: windows-build
           path: |
-            dist-electron/**
+            dist/**
             release/**
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.exe
+            dist/*.blockmap
+            release/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
